@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import torchvision.models as models
 import torch.nn as nn
 
-from GradCam import GradCAM
+from GradCam import GradCAM  # Make sure this module is correctly implemented
+
 # Set up the device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -20,23 +21,28 @@ data_transforms = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-# Load your trained model (for example, a ResNet18)
+# Define the model using DenseNet121
 num_classes = 23  # update as needed
-model = models.resnet50(pretrained=False)
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, num_classes)
-model.load_state_dict(torch.load("best_model_weights.pth", map_location=device))
+model = models.densenet121(pretrained=False)
+num_ftrs = model.classifier.in_features
+# Replace the classifier with a Sequential block matching your training setup
+model.classifier = nn.Sequential(
+    nn.Dropout(p=0.2),  # Dropout with 20% probability
+    nn.Linear(num_ftrs, num_classes)
+)
+# Load the saved model weights
+model.load_state_dict(torch.load("best_model_weights_denseNet.pth", map_location=device))
 model = model.to(device)
 model.eval()
 
-# Choose the target layer for Grad-CAM (for ResNet, you might use the last conv layer)
-target_layer = model.layer4[1].conv2  # adjust based on your model architecture
+# For DenseNet121, a common choice is to use the last layer of the features module.
+target_layer = model.features[-1]
 
-# Initialize GradCAM with your model and chosen layer
+# Initialize GradCAM with model and chosen layer
 grad_cam = GradCAM(model, target_layer)
 
-# Load your personal image
-img_path = "archive/test/Acne and Rosacea Photos/07PerioralDermEye.jpg"
+# Load your personal test image
+img_path = "Screenshot 2025-03-10 114615.png"
 orig_image = Image.open(img_path).convert("RGB")
 input_tensor = data_transforms(orig_image)
 input_tensor = input_tensor.unsqueeze(0).to(device)
@@ -46,7 +52,7 @@ cam = grad_cam.generate(input_tensor)
 
 # Convert original image to numpy array for visualization
 orig_np = np.array(orig_image.resize((224, 224)))
-# Convert RGB to BGR for OpenCV (if needed)
+# Convert RGB to BGR for OpenCV
 orig_np = cv2.cvtColor(orig_np, cv2.COLOR_RGB2BGR)
 
 # Apply a colormap to the heatmap
@@ -55,31 +61,30 @@ heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
 overlay = cv2.addWeighted(orig_np, 0.6, heatmap, 0.4, 0)
 
 # Display the images using matplotlib
-plt.figure(figsize=(12,4))
-plt.subplot(1,3,1)
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 3, 1)
 plt.imshow(cv2.cvtColor(orig_np, cv2.COLOR_BGR2RGB))
 plt.title("Original Image")
 plt.axis("off")
 
-plt.subplot(1,3,2)
+plt.subplot(1, 3, 2)
 plt.imshow(cam, cmap='jet')
 plt.title("Grad-CAM Heatmap")
 plt.axis("off")
 
-plt.subplot(1,3,3)
+plt.subplot(1, 3, 3)
 plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
 plt.title("Overlay")
 plt.axis("off")
 plt.show()
 
-# Optionally, you can get the predicted class:
+# Optionally, get the predicted class:
 with torch.no_grad():
     outputs = model(input_tensor)
     _, predicted = torch.max(outputs, 1)
 
+# Automatically extract class names by scanning the training directory
 train_path = "archive/train"
-class_names = sorted(os.listdir(train_path))
-# Filter to only include directories
-dirs = [d for d in os.listdir(train_path) if os.path.isdir(os.path.join(train_path, d))]
-print(f"Number of directories: {len(dirs)}")
+class_names = sorted([d for d in os.listdir(train_path) if os.path.isdir(os.path.join(train_path, d))])
+print(f"Number of directories: {len(class_names)}")
 print(f"Predicted class: {class_names[predicted.item()]}")

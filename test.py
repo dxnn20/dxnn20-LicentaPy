@@ -1,4 +1,3 @@
-
 import torch
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
@@ -9,14 +8,17 @@ import os
 
 from DermnetDataset import DermnetDataset
 
-# Define the model
+# Define the model using DenseNet121
 num_classes = 23
-model = models.resnet50(pretrained=False)
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, num_classes)
-model.load_state_dict(torch.load("best_model_weights.pth"))
+model = models.densenet121(pretrained=False)
+num_ftrs = model.classifier.in_features
+model.classifier = nn.Sequential(
+    nn.Dropout(p=0.2),  # Dropout with 20% probability
+    nn.Linear(num_ftrs, num_classes)
+)
+model.load_state_dict(torch.load("best_model_weights_denseNet.pth", map_location=torch.device("cpu")))
 
-# Define data transformations (must be the same as used in training)
+# Define data transformations (must be the same as used during training)
 data_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -29,9 +31,9 @@ test_path = "archive/test"
 
 # Create the test dataset and dataloader
 test_dataset = DermnetDataset(test_path, transform=data_transforms)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-# Ensure your model is in evaluation mode
+# Set the model to evaluation mode
 model.eval()
 
 # If using GPU:
