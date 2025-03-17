@@ -23,26 +23,33 @@ data_transforms = transforms.Compose([
 
 # Define the model using DenseNet121
 num_classes = 23  # update as needed
-model = models.densenet121(pretrained=False)
-num_ftrs = model.classifier.in_features
-# Replace the classifier with a Sequential block matching your training setup
-model.classifier = nn.Sequential(
-    nn.Dropout(p=0.2),  # Dropout with 20% probability
-    nn.Linear(num_ftrs, num_classes)
+model = models.resnet50(pretrained=False)
+num_ftrs = model.fc.in_features
+
+model.fc = nn.Sequential(
+    nn.Linear(num_ftrs, 512),
+    nn.ReLU(),
+    nn.Dropout(0.4),
+    nn.Linear(512, 256),
+    nn.ReLU(),
+    nn.Dropout(0.3),
+    nn.Linear(256, num_classes)
 )
+
 # Load the saved model weights
-model.load_state_dict(torch.load("best_model_weights_denseNet.pth", map_location=device))
+model.load_state_dict(torch.load("resnet18_best_model.pth", map_location=device))
 model = model.to(device)
 model.eval()
 
-# For DenseNet121, a common choice is to use the last layer of the features module.
-target_layer = model.features[-1]
+# For ResNet50, a common choice is to use the last layer of the features module.
+# Get the last convolutional layer
+target_layer = model.layer4[-1]
 
 # Initialize GradCAM with model and chosen layer
 grad_cam = GradCAM(model, target_layer)
 
 # Load your personal test image
-img_path = "Screenshot 2025-03-10 114615.png"
+img_path = "archive/test/Eczema Photos/03DermatitisArm1.jpg"
 orig_image = Image.open(img_path).convert("RGB")
 input_tensor = data_transforms(orig_image)
 input_tensor = input_tensor.unsqueeze(0).to(device)

@@ -10,13 +10,19 @@ from DermnetDataset import DermnetDataset
 
 # Define the model using DenseNet121
 num_classes = 23
-model = models.densenet121(pretrained=False)
-num_ftrs = model.classifier.in_features
-model.classifier = nn.Sequential(
-    nn.Dropout(p=0.2),  # Dropout with 20% probability
-    nn.Linear(num_ftrs, num_classes)
+model = models.resnet50(pretrained=False)
+num_ftrs = model.fc.in_features
+model.fc = nn.Sequential(
+    nn.Linear(num_ftrs, 512),
+    nn.ReLU(),
+    nn.Dropout(0.4),
+    nn.Linear(512, 256),
+    nn.ReLU(),
+    nn.Dropout(0.3),
+    nn.Linear(256, num_classes)
 )
-model.load_state_dict(torch.load("best_model_weights_denseNet.pth", map_location=torch.device("cpu")))
+
+model.load_state_dict(torch.load("resnet50_best_model.pth", map_location=torch.device("cpu")))
 
 # Define data transformations (must be the same as used during training)
 data_transforms = transforms.Compose([

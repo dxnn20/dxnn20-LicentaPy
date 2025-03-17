@@ -1,32 +1,32 @@
+import torch
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
-
-import torch
-from DermnetDataset import DermnetDataset  # Ensure this file defines a class named DermnetDataset with a 'classes' attribute.
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import copy
+from DermnetDataset import DermnetDataset  # Ensure this file defines a class named DermnetDataset with a 'classes' attribute.
 
 BATCH_SIZE = 64
-IMAGE_SIZE = 300
-patience = 7
-early_stop_counter = 0
+IMAGE_SIZE = 224
+PATIENCE = 7
+EARLY_STOP_COUNTER = 0
+NUM_EPOCHS = 50
+GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
 
 train_path = "archive/train"  # Folder containing your training images
 test_path = "archive/test"    # Folder containing your test images
 
-# Data transforms (same as used during training)
+# Data transforms with advanced augmentation
 data_transforms = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.RandomRotation(30),            # Augmentation: rotation
-    transforms.RandomHorizontalFlip(),        # Augmentation: horizontal flip
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),  # Augmentation: color jitter
+    transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+    transforms.RandomRotation(30),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406],
-                         [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
 # Create the full dataset from the training folder
@@ -45,10 +45,10 @@ print(f"Training images: {train_size}, Validation images: {val_size}")
 train_loader = DataLoader(dataset_train, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(dataset_val, batch_size=BATCH_SIZE, shuffle=False)
 
-# Define model using transfer learning with ResNet-50-wide
-model = models.wide_resnet50_2(pretrained=True)
-num_ftrs = model.fc.in_features  # Access the 'fc' layer's input features
-num_classes = len(full_dataset.classes)  # Assumes DermnetDataset sets self.classes properly
+# Define model using transfer learning with ResNet-50
+model = models.resnet50(pretrained=True)
+num_ftrs = model.fc.in_features
+num_classes = len(full_dataset.classes)
 
 model.fc = nn.Sequential(
     nn.Linear(num_ftrs, 512),
@@ -60,12 +60,14 @@ model.fc = nn.Sequential(
     nn.Linear(256, num_classes)
 )
 
-# Define loss, optimizer, and learning rate scheduler
-criterion = nn.CrossEntropyLoss()
-# Reinitialize optimizer to ensure consistency if you change it:
-optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.01)
+# Define loss with label smoothing
+criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.3, patience=3, verbose=True)
+# Define optimizer
+optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+
+# Learning rate scheduler
+scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, steps_per_epoch=len(train_loader), epochs=NUM_EPOCHS)
 
 # Set device and move model to device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,16 +75,20 @@ print("Using device:", device)
 model = model.to(device)
 
 # Set up TensorBoard writer
-writer = SummaryWriter(log_dir='runs/experiment_resNet')
+writer = SummaryWriter(log_dir='runs/experiment_resNet18')
 
-num_epochs = 50
+# Initialize variables for tracking best model
 best_model_wts = copy.deepcopy(model.state_dict())
 best_val_loss = float('inf')
 
+# Initialize EMA weights
+ema_model = copy.deepcopy(model)
+ema_decay = 0.999
+
 print("Starting training...")
 
-for epoch in range(num_epochs):
-    print(f"Epoch {epoch + 1}/{num_epochs}")
+for epoch in range(NUM_EPOCHS):
+    print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
     print('*' * 40)
 
     # Each epoch has a training and validation phase
@@ -98,7 +104,7 @@ for epoch in range(num_epochs):
         running_corrects = 0
 
         # Iterate over data
-        for inputs, labels in dataloader:
+        for i, (inputs, labels) in enumerate(dataloader):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
@@ -111,9 +117,17 @@ for epoch in range(num_epochs):
 
                 if phase == 'train':
                     loss.backward()
-                    # Optionally clip gradients
+                    # Gradient clipping
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-                    optimizer.step()
+
+                    if (i + 1) % GRADIENT_ACCUMULATION_STEPS == 0:
+                        optimizer.step()
+                        scheduler.step()
+
+                        # Update EMA weights
+                        with torch.no_grad():
+                            for ema_param, param in zip(ema_model.parameters(), model.parameters()):
+                                ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
 
             running_loss += loss.item() * inputs.size(0)
             running_corrects += torch.sum(preds == labels.data)
@@ -127,28 +141,23 @@ for epoch in range(num_epochs):
         writer.add_scalar(f"{phase}/Loss", epoch_loss, epoch)
         writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
 
-        # Save best model weights if validation loss improves
-        if phase == 'val':
-            if epoch_loss < best_val_loss:
-                best_val_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
-                early_stop_counter = 0
-            else:
-                early_stop_counter += 1
+        # Track the best model
+        if phase == 'val' and epoch_loss < best_val_loss:
+            best_val_loss = epoch_loss
+            best_model_wts = copy.deepcopy(model.state_dict())
+            EARLY_STOP_COUNTER = 0
+        elif phase == 'val':
+            EARLY_STOP_COUNTER += 1
 
-    # Adjust learning rate based on the latest validation loss
-    scheduler.step(epoch_loss)
-
-    # After scheduler.step(epoch_loss):
-    if early_stop_counter >= patience:
-        print(f"Early stopping triggered after {epoch + 1} epochs")
+    # Early stopping check
+    if EARLY_STOP_COUNTER >= PATIENCE:
+        print("Early stopping triggered.")
         break
 
 # Load the best model weights
 model.load_state_dict(best_model_wts)
-print(f"Best validation Loss: {best_val_loss:.4f}")
-writer.close()
+print("Training complete.")
 
-# Save the best model weights to disk for later use
-torch.save(best_model_wts, 'best_model_weights_resnet50_wide.pth')
-print("Model weights saved to 'best_model_weights_resnet50_wide.pth'")
+# Save the model
+torch.save(model.state_dict(), "resnet18_best_model.pth")
+print("Model saved.")
