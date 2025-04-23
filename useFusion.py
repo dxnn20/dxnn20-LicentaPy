@@ -1,19 +1,17 @@
-# Install the library if you haven't already
-
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import torchvision.models as models
-import torch.nn as nn
-import torch.nn.functional as F
+from ResNet152Model import  ResNet152Model
 
 # Import pytorch-grad-cam components
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
+from FusionModelClass import FusionModel
 
 # Set up the device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,68 +20,57 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 data_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406],
-                         [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# Define the model
-num_classes = 23
-model = models.resnet50(pretrained=False)  # Initialize the model first
-num_ftrs = model.fc.in_features
+# Load class names
+train_path = "archive/train"
+class_names = sorted([d for d in os.listdir(train_path) if os.path.isdir(os.path.join(train_path, d))])
+num_classes = len(class_names)
 
-model.fc = nn.Sequential(
-    nn.Linear(num_ftrs, 1024),
-    nn.BatchNorm1d(1024),
-    nn.LeakyReLU(),
-    nn.Dropout(0.5),
-    nn.Linear(1024, 512),
-    nn.BatchNorm1d(512),
-    nn.LeakyReLU(),
-    nn.Dropout(0.3),
-    nn.Linear(512, num_classes)
-)
+print("Class names:")
+print(class_names)
 
-# Load the saved model weights
-model.load_state_dict(torch.load("best_fusion_model.pth", weights_only=True))
+# Initialize and load the fusion model
+model = ResNet152Model(num_classes)
+model.load_state_dict(torch.load("best_resnet152_model.pth", map_location=device))
+
 model = model.to(device)
 model.eval()
 
-# Define target layers - try different layers to see which gives better visualization
-target_layers = [
-    model.layer1[-1],  # Last bottleneck of layer1
-    model.layer2[-1],  # Last bottleneck of layer2
-    model.layer3[-1],  # Last bottleneck of layer3
-    model.layer4[-1]   # Last bottleneck of layer4
-]
+# For Grad-CAM, we'll use the last layer of ResNet50 component
+target_layers = [model.resnet.layer4[-1]]
 
-for param in model.parameters():
-    param.requires_grad = True
 
 # Create GradCAM object
 cam = GradCAM(model=model, target_layers=target_layers)
 
 # Load your test image
-img_path = "useless/test/Eczema Photos/Dyshidrosis-54.jpg"
+img_path = "archive/train/Bullous Disease Photos/benign-familial-chronic-pemphigus-1.jpg"
 orig_image = Image.open(img_path).convert("RGB")
 rgb_img = np.array(orig_image.resize((224, 224))) / 255.0  # Normalize to 0-1
 input_tensor = data_transforms(orig_image).unsqueeze(0).to(device)
 
-print("Calculating predictions...")
-outputs = model(input_tensor)
-probabilities = F.softmax(outputs, dim=1)
-confidence, predicted = torch.max(probabilities, 1)
-confidence_pct = confidence.item() * 100
+print("Processing image...")
 
-# Get class names
-train_path = "useless/train"
-class_names = sorted([d for d in os.listdir(train_path) if os.path.isdir(os.path.join(train_path, d))])
+# Get model prediction and confidence
+# For inference only (not for Grad-CAM)
+with torch.no_grad():
+    outputs = model(input_tensor)
+    probabilities = F.softmax(outputs, dim=1)
+    confidence, predicted = torch.max(probabilities, 1)
+    confidence_pct = confidence.item() * 100
+
 predicted_class = class_names[predicted.item()]
 
 # Create target for GradCAM
 targets = [ClassifierOutputTarget(predicted.item())]
 
+# For Grad-CAM (requires gradients)
+with GradCAM(model=model, target_layers=target_layers) as cam:
+    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
+
 # Generate heatmap
-grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
 grayscale_cam = grayscale_cam[0, :]  # Get the first image in the batch
 
 # Create visualization
@@ -110,7 +97,7 @@ plt.show()
 # Print prediction with confidence
 print(f"Predicted class: {predicted_class} with {confidence_pct:.2f}% confidence")
 
-# Optionally show top 5 predictions
+# Show top 5 predictions
 top5_prob, top5_indices = torch.topk(probabilities, 5, dim=1)
 top5_pct = [prob.item() * 100 for prob in top5_prob[0]]
 

@@ -1,28 +1,32 @@
 import torch
-import torch.nn as nn
-import torchvision.models as models
+from FusionModelClass import FusionModel, HybridLoss
 import torchvision.transforms as transforms
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.data import DataLoader, random_split
 from DermnetDataset import DermnetDataset
 
+
+# Training configuration
 BATCH_SIZE = 64
 IMAGE_SIZE = 224
 NUM_EPOCHS = 50
 PATIENCE = 7
-EARLY_STOP_COUNTER = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 print(f"device: {device}")
-# Improved Data Augmentation
+
+# Enhanced data augmentation
 train_transforms = transforms.Compose([
     transforms.RandomResizedCrop(IMAGE_SIZE, scale=(0.8, 1.0)),
     transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(30),
-    transforms.ColorJitter(0.1, 0.3, 0.3),
+    transforms.RandomVerticalFlip(),
+    transforms.RandomRotation(45),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+    transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    transforms.RandomErasing(p=0.2)
 ])
 
 test_transforms = transforms.Compose([
@@ -31,11 +35,21 @@ test_transforms = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# Load Dataset
+# Load dataset
 dataset = DermnetDataset("useless/train", transform=train_transforms)
 dataset_size = len(dataset)
 num_classes = len(dataset.classes)
 
+# Calculate class weights
+class_counts = [0] * num_classes
+for _, label in dataset:
+    class_counts[label] += 1
+
+total_samples = sum(class_counts)
+class_weights = [total_samples / (num_classes * count) for count in class_counts]
+class_weights = torch.FloatTensor(class_weights).to(device)
+
+# Train-validation split
 train_size = int(0.8 * dataset_size)
 val_size = dataset_size - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
@@ -43,34 +57,34 @@ train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-# Load ResNet50 Model with Pretrained Weights
-model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
-
-# Modify the Fully Connected Layer
-num_ftrs = model.fc.in_features
-model.fc = nn.Sequential(
-    nn.Linear(num_ftrs, 1024),
-    nn.BatchNorm1d(1024),
-    nn.LeakyReLU(),
-    nn.Dropout(0.5),
-    nn.Linear(1024, 512),
-    nn.BatchNorm1d(512),
-    nn.LeakyReLU(),
-    nn.Dropout(0.3),
-    nn.Linear(512, num_classes)
-)
-
+# Initialize model
+model = FusionModel(num_classes)
 model = model.to(device)
 
-# Loss Function with Label Smoothing
-criterion = nn.CrossEntropyLoss(label_smoothing=0.2)
+# Loss function with class weights
+criterion = HybridLoss(alpha=0.75, weight=class_weights, label_smoothing=0.1)
 
-# Optimizer and Scheduler
-optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
-scheduler = CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
+# Optimizer with different learning rates
+params = [
+    {'params': model.efficientnet_b0.parameters(), 'lr': 1e-5},
+    {'params': model.resnet50.parameters(), 'lr': 1e-5},
+    {'params': model.classifier.parameters(), 'lr': 1e-4}
+]
 
-# Training Loop
+optimizer = optim.AdamW(params, weight_decay=0.01)
+
+# Learning rate scheduler
+scheduler = OneCycleLR(
+    optimizer,
+    max_lr=[1e-4, 1e-4, 5e-4],
+    steps_per_epoch=len(train_loader),
+    epochs=NUM_EPOCHS,
+    pct_start=0.3
+)
+
+# Training loop
 best_val_loss = float("inf")
+early_stop_counter = 0
 
 for epoch in range(NUM_EPOCHS):
     print("*" * 25)
@@ -100,6 +114,7 @@ for epoch in range(NUM_EPOCHS):
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
+                    scheduler.step()
 
             running_loss += loss.item() * inputs.size(0)
             running_corrects += torch.sum(preds == labels.data)
@@ -111,14 +126,12 @@ for epoch in range(NUM_EPOCHS):
 
         if phase == 'val' and epoch_loss < best_val_loss:
             best_val_loss = epoch_loss
-            EARLY_STOP_COUNTER = 0
-            torch.save(model.state_dict(), "best_model_resnet50_part2.pth")
+            early_stop_counter = 0
+            torch.save(model.state_dict(), "best_fusion_model.pth")
         elif phase == 'val':
-            EARLY_STOP_COUNTER += 1
+            early_stop_counter += 1
 
-    scheduler.step()
-
-    if EARLY_STOP_COUNTER >= PATIENCE:
+    if early_stop_counter >= PATIENCE:
         print("Early stopping triggered.")
         break
 

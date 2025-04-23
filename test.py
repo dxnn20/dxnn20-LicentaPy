@@ -13,16 +13,18 @@ num_classes = 23
 model = models.resnet50(pretrained=False)
 num_ftrs = model.fc.in_features
 model.fc = nn.Sequential(
-    nn.Linear(num_ftrs, 512),
-    nn.ReLU(),
-    nn.Dropout(0.4),
-    nn.Linear(512, 256),
-    nn.ReLU(),
+    nn.Linear(num_ftrs, 1024),
+    nn.BatchNorm1d(1024),
+    nn.LeakyReLU(),
+    nn.Dropout(0.5),
+    nn.Linear(1024, 512),
+    nn.BatchNorm1d(512),
+    nn.LeakyReLU(),
     nn.Dropout(0.3),
-    nn.Linear(256, num_classes)
+    nn.Linear(512, num_classes)  # Must match training!
 )
 
-model.load_state_dict(torch.load("resnet50_best_model.pth", map_location=torch.device("cpu")))
+model.load_state_dict(torch.load("best_fusion_model.pth", map_location=torch.device("cpu")))
 
 # Define data transformations (must be the same as used during training)
 data_transforms = transforms.Compose([
@@ -33,7 +35,7 @@ data_transforms = transforms.Compose([
 ])
 
 # Path to test dataset
-test_path = "archive/test"
+test_path = "useless/test"
 
 # Create the test dataset and dataloader
 test_dataset = DermnetDataset(test_path, transform=data_transforms)
