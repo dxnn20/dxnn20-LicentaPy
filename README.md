@@ -1,6 +1,8 @@
-SmartDerm este o aplicație de tip full-stack care utilizează inteligența artificială pentru diagnosticarea precisă a afecțiunilor cutanate. Sistemul combină performanțele ridicate ale arhitecturii EfficientNet-B5 cu explicabilitatea oferită de Grad-CAM, oferind utilizatorilor nu doar o predicție, ci și o justificare vizuală a diagnosticului.
+RO: (Scroll down for English ReadME)
+SmartDerm este o aplicație de tip full-stack care utilizează inteligența artificială pentru diagnosticarea precisă a afecțiunilor cutanate. Sistemul combină performanțele ridicate ale arhitecturii EfficientNet-B5 cu explicabilitatea oferită de Grad-CAM, 
+oferind utilizatorilor nu doar o predicție, ci și o justificare vizuală a diagnosticului.
 
-Caracteristici Principale
+Caracteristici Principale:
 Model AI Performant: EfficientNet-B5 cu 95.96% acuratețe top-3
 
 AI Explicabil: Implementare Grad-CAM pentru vizualizarea regiunilor relevante
