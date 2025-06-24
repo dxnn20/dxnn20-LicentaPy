@@ -1,0 +1,55 @@
+<div class="min-h-screen flex items-center justify-center bg-gray-100">
+  <div class="max-w-lg w-full bg-white p-10 rounded-xl shadow-xl">
+    <h2 class="text-3xl font-extrabold text-center mb-8 text-indigo-600">Create your account</h2>
+    <form class="space-y-5" (ngSubmit)="onSubmit()" >
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-indigo-600">First Name</label>
+          <input type="text" [(ngModel)]="user.firstName" name="firstName"
+                 class="mt-1 w-full px-3 py-2 border text-black rounded-md focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-indigo-600">Last Name</label>
+          <input type="text" [(ngModel)]="user.lastName" name="lastName"
+                 class="mt-1 w-full px-3 py-2 border text-black rounded-md focus:ring-indigo-600" />
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+        <label class="block text-sm font-medium text-indigo-600">Email address</label>
+        <input type="email" [(ngModel)]="user.email" name="email"
+               class="mt-1 w-full px-3 py-2 border text-black rounded-md focus:ring-indigo-600" />
+        </div>
+        <div>
+        <label class="block text-sm font-medium text-indigo-600">Username</label>
+        <input type="email" [(ngModel)]="user.username" name="usrname"
+               class="mt-1 w-full px-3 py-2 border text-black rounded-md focus:ring-indigo-600" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-indigo-600">Password</label>
+        <input type="password" [(ngModel)]="user.password" name="password"
+               class="mt-1 w-full px-3 py-2 border rounded-md text-black focus:ring-indigo-600" />
+      </div>
+      <button type="submit"
+              class="w-full py-2 mt-4 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-600">
+        Sign Up
+      </button>
+    </form>
+
+    <p class="mt-6 text-center text-sm text-black">
+      Already have an account?
+      <a href="/login" class="text-indigo-600 hover:underline">Sign in</a>
+    </p>
+    <div *ngIf="errorMessage">
+      <p class="mt-4 text-center text-sm text-red-600">
+        {{ errorMessage }}
+      </p>
+    </div>
+  </div>
+  <div class="toast toast-top toast-center" *ngIf="showSuccess">
+    <div class="alert alert-success">
+      <span>Account created successfully! Redirecting to login...</span>
+    </div>
+  </div>
+</div>

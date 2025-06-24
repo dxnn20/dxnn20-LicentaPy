@@ -1,0 +1,95 @@
+<div class="drawer lg:drawer-open">
+  <input id="dash-drawer" type="checkbox" class="drawer-toggle"/>
+
+  <!-- Main Content -->
+  <div class="drawer-content flex flex-col items-center bg-base-100 min-h-screen py-6">
+    <div class="w-full max-w-4xl px-4">
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-primary">Hello, {{ user?.firstName }}</h1>
+        <button class="btn btn-error btn-outline" (click)="logout()">Logout</button>
+      </div>
+
+      <!-- Grid: User Info & Upload -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- User Card -->
+        <div class="card bg-neutral text-neutral-content shadow-lg">
+          <div class="card-body">
+            <h2 class="card-title">Your Profile</h2>
+            <p><strong>Name:</strong> {{ user?.firstName }} {{ user?.lastName }}</p>
+            <p><strong>Email:</strong> {{ user?.email }}</p>
+            <p><strong>Role:</strong> {{ user?.roles }}</p>
+          </div>
+        </div>
+        <!-- Upload Card -->
+        <div class="card bg-base-200 shadow-lg">
+          <div class="card-body">
+            <h2 class="card-title">Upload a Scan</h2>
+            <input type="file" (change)="onFileSelected($event)" class="file-input file-input-bordered w-full"/>
+            <button class="btn btn-primary mt-4" (click)="uploadScan()">Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scans Gallery -->
+      <h2 class="text-2xl font-semibold mb-4">My Scans</h2>
+      <div *ngIf="scans.length; else noScans" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div *ngFor="let scan of scans" class="card bg-base-100 shadow hover:cursor-pointer"
+             (click)="openModal(scan)">
+          <figure>
+            <img *ngIf="scan.beforePicBase64" [src]="getScanSrc(scan)" alt="Scan Image"
+                 class="w-full h-48 object-cover"/>
+          </figure>
+          <div class="card-body">
+            <p class="truncate"><strong>{{ scan.fileName }}</strong></p>
+            <button
+              class="btn btn-soft btn-sm disabled:cursor-not-allowed"
+              (click)="processScan(scan.id); $event.stopPropagation()"
+              [disabled]="scan.afterPicBase64">
+              Process Image
+            </button>
+            <button class="btn btn-error btn-sm" (click)="deleteScan(scan.id); $event.stopPropagation()">
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+      <ng-template #noScans>
+        <div class="text-center text-gray-500">No scans available. Upload one above!</div>
+      </ng-template>
+    </div>
+
+    <input type="checkbox" id="scan-modal" class="modal-toggle"/>
+    <div class="modal">
+      <div class="modal-box w-11/12 max-w-3xl">
+        <h3 class="font-bold text-xl mb-4">Scan Details</h3>
+        <div *ngIf="selectedScan">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p class="font-semibold">Original Scan:</p>
+              <img [src]="getScanSrc(selectedScan)" alt="Before" class="w-full rounded"/>
+            </div>
+            <div>
+              <p class="font-semibold">Grad-CAM Overlay:</p>
+              <img [src]="getOverlaySrc(selectedScan)" alt="Don't Forget to press the process button!" class="w-full rounded"/>
+            </div>
+          </div>
+          <div class="mt-4">
+            <p><strong>Predicted Class Name:</strong> {{ selectedScan.predictedClassName }}</p>
+            <p><strong>Confidence:</strong> {{ selectedScan.confidence | percent:'1.1-2' }}</p>
+            <p><strong>Top 3 Predictions:</strong></p>
+            <ul>
+              <li *ngFor="let label of top3PredictedLabels">{{ label }}</li>
+            </ul>
+            <p class="2xl:text-warning"><strong>Note:</strong> Top 2 and 3 predictions usually have much lower confidence (<0.1)</p>
+
+          </div>
+        </div>
+        <p class="2xl:text-warning">AI can make mistakes. </p>
+        <div class="modal-action">
+          <label for="scan-modal" class="btn">Close</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
