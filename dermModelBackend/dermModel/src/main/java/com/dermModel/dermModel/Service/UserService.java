@@ -21,18 +21,4 @@ public class UserService {
         return user.isPresent();
     }
 
-    public static String hashPassword(String password)
-    {
-        final long base=29;
-        final long mod=385934743;
-        long pow=1;
-        long hash=0;
-
-        for (int i=0;i<password.length();i++)
-        {
-            hash=(hash*base+password.charAt(i))%mod;
-            pow=(pow*base)%mod;
-        }
-        return String.valueOf(hash);
-    }
 }

@@ -5,10 +5,9 @@ import torch
 CONFIG = {
     "image_size": (460, 460),
     "device": torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-    "data_dir": "E:\\dxnn20-LicentaPy\\archive\\train"
+    "data_dir": "D:\\LICENTAPY\\archive\\train"
 }
 
-# Assuming the folders are like: /path/to/train/class_name/
 data_dir = CONFIG["data_dir"].replace("train", "test")
 class_names = sorted([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))])
 

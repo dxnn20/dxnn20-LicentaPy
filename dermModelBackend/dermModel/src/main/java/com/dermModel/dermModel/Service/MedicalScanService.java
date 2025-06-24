@@ -33,4 +33,5 @@ public class MedicalScanService {
     public List<MedicalScan> getMedicalScansByUserId(Long userId) {
         return medicalScanRepository.findAllByUserId(userId);  // Use the updated method name
     }
+
 }

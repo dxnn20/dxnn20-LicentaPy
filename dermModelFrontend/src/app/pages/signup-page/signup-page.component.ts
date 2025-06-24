@@ -29,8 +29,6 @@ export class SignupPageComponent {
     };
   }
 
-  confirmPassword: string = '';
-
   user: User = {
     firstName: '',
     lastName: '',
@@ -42,13 +40,19 @@ export class SignupPageComponent {
 
   errorMessage: string = '';
 
-  onSubmit(): void {
-    console.log('Form submitted with user', this.user);
+  showSuccess: boolean = false;
 
+  onSubmit(): void {
     this.http.post(`${environment.apiPrefix}/security/sign-up`, this.user).subscribe({
       next: (response) => {
         console.log('Signup successful:', response);
-        this.router.navigate(['/login']);
+        this.showSuccess = true;
+
+        // Hide snackbar after 2 seconds
+        setTimeout(() => {
+          this.showSuccess = false;
+          this.router.navigate(['/login']);
+        }, 2000);
       },
       error: (error) => {
         if (error.status === 409) {

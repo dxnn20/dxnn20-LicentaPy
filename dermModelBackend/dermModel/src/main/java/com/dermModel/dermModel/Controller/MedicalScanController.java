@@ -61,7 +61,7 @@ public class MedicalScanController {
     @PostMapping(value = "/save-scan", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> saveScan(@RequestParam("file") MultipartFile file) {
         try {
-            // Retrieve authenticated user (or however you're handling user association)
+            // Retrieve authenticated user
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String principalJson = auth.getName();
 
@@ -71,13 +71,13 @@ public class MedicalScanController {
 
             System.out.println("User email: " + email);
 
-            // Now you can use the email to retrieve the user from the DB
+            // Now we can use the email to retrieve the user from the DB
             User user = userRepository.findByEmail(email).orElseThrow();
 
             // Create and save scan
             MedicalScan scan = new MedicalScan();
             scan.setFileName(file.getOriginalFilename());
-            scan.setBeforePic(file.getBytes()); // assuming one image for now
+            scan.setBeforePic(file.getBytes());
             scan.setUser(user);
 
             medicalScanService.addMedicalScan(scan);
@@ -149,16 +149,16 @@ public class MedicalScanController {
         try {
             // 3) Call the Python script
             ProcessBuilder pb = new ProcessBuilder(
-                    "python",
-                    "E:\\dxnn20-LicentaPy\\dermModelBackend\\dermModel\\src\\predict_and_gradcam.py",
+                    "D:\\LICENTAPY\\.venv\\Scripts\\python.exe",
+                    "D:\\LICENTAPY\\dermModelBackend\\dermModel\\src\\predict_and_gradcam.py",
                     "--input", tmpInput.toString(),
                     "--output", tmpOutput.toString()
             );
 
-            pb.redirectErrorStream(true);  // Redirect both stdout and stderr to the same stream
+            pb.redirectErrorStream(true);  // Redirect both stdout and stderr to the same stream, need to see what it outputs
             Process proc = pb.start();
 
-// Capture the output and error streams from the Python process
+            // Capture the output and error streams from the Python process
             BufferedReader reader2 = new BufferedReader(new InputStreamReader(proc.getInputStream()));
             String line;
             StringBuilder output = new StringBuilder();
@@ -167,7 +167,7 @@ public class MedicalScanController {
             }
             proc.waitFor();  // Wait for the process to finish
 
-// Log the output
+            // Log the output
             System.out.println("Python script output: " + output.toString());
 
 // Handle script failure
@@ -175,13 +175,13 @@ public class MedicalScanController {
                 throw new RuntimeException("GradCAM script failed or timed out");
             }
 
-            // (b) read JSON from stdout
+            // read JSON from stdout
             String jsonString;
-            try (BufferedReader reader = new BufferedReader(
+            try (BufferedReader _ = new BufferedReader(
                     new InputStreamReader(proc.getInputStream()))) {
                 jsonString = output.toString().trim();
-
             }
+
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(jsonString);
 
@@ -196,7 +196,7 @@ public class MedicalScanController {
             if (predNode != null) {
                 int predictedClassId = predNode.asInt();
                 String predictedClassName = classNameMapper.getClassName(predictedClassId);
-                scan.setPredictedClassName(predictedClassName); // You can add this field
+                scan.setPredictedClassName(predictedClassName);
             }
 
             JsonNode confNode = json.get("confidence");
