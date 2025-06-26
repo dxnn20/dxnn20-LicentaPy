@@ -1,7 +1,8 @@
 LINK REPO: https://github.com/dxnn20/dxnn20-LicentaPy
 ```txt
 RO: (Scroll down for English ReadME)
-SmartDerm este o aplicație de tip full-stack care utilizează inteligența artificială pentru diagnosticarea precisă a afecțiunilor cutanate. Sistemul combină performanțele ridicate ale arhitecturii EfficientNet-B5 cu explicabilitatea oferită de Grad-CAM, 
+SmartDerm este o aplicație de tip full-stack care utilizează inteligența artificială pentru diagnosticarea precisă a afecțiunilor cutanate. 
+Sistemul combină performanțele ridicate ale arhitecturii EfficientNet-B5 cu explicabilitatea oferită de Grad-CAM, 
 oferind utilizatorilor nu doar o predicție, ci și o justificare vizuală a diagnosticului, impreuna cu o interfata web cu o baza de date.
 ```
 Caracteristici Principale:
