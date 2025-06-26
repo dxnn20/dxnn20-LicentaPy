@@ -63,13 +63,6 @@ Fast Processing: Response time under 3 seconds
 Scalable Architecture: Frontend/backend separation for flexibility
 ```
 
-```txt
-Minimum Hardware Requirements
-RAM: 8GB (16GB recommended for training)
-Disk Space: 10GB free
-GPU: NVIDIA GPU with CUDA support (optional, for training)
-CPU: Intel i5 or equivalent AMD
-```
 Supported Operating Systems
 Windows 10/11 (x64)
 ```txt
