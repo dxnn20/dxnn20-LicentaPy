@@ -5,22 +5,25 @@ SmartDerm este o aplicație de tip full-stack care utilizează inteligența arti
 oferind utilizatorilor nu doar o predicție, ci și o justificare vizuală a diagnosticului, impreuna cu o interfata web cu o baza de date.
 
 Caracteristici Principale:
+```txt
 Model AI Performant: EfficientNet-B5 cu 95.96% acuratețe top-3
 AI Explicabil: Implementare Grad-CAM pentru vizualizarea regiunilor relevante
 Interfață Web Modernă: Frontend Angular cu backend Spring Boot
 10 Clase de Afecțiuni: Detectarea a 10 tipuri distincte de boli de piele
 Procesare Rapidă: Timp de răspuns foarte rapid si pe hardware limitat
 Arhitectură Scalabilă: Separare front-end/back-end pentru flexibilitate
-
+```
 Sistem de Operare Suportat
 Windows 10/11 (x64)
-
+```
 Cerințe Software de Bază:
   Java Development Kit (JDK)
   Node.js și npm (sau un alt package manager)
   Python și pip
   MySQL Server
+```
 
+```
 instalare dependinte Python:
 pip install torch
 pip install pytorch-gradcam
@@ -32,6 +35,7 @@ pip install scikit-learn
 pip install tqdm
 pip install onnx
 pip install onnxruntime
+```
 
 Rulare Backend:
 actualizare dependinte maven (sync)
